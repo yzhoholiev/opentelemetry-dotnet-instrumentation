@@ -9,43 +9,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  alpine_build:
-    name: Alpine Build
-    runs-on: ubuntu-20.04
-    steps:
-    - uses: actions/checkout@v2
-    - run: docker-compose run build
-      env:
-        buildConfiguration: Release
-    - run: docker-compose run Profiler.Alpine
-      env:
-        buildConfiguration: Release
-    - run: docker-compose run package.alpine
-      env:
-        buildConfiguration: Release
-    - uses: actions/upload-artifact@v2
-      with:
-        name: artifacts
-        path: deploy/linux
-
   linux_build:
-    name: Linux Build
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        baseImage: [alpine, debian]
+
+    env:
+      baseImage: ${{ matrix.baseImage }}
+      dotnetCoreSdk5Version: 5.0.103
     steps:
     - uses: actions/checkout@v2
-    - run: docker-compose run build
-      env:
-        buildConfiguration: Release
-    - run: docker-compose run Profiler
-      env:
-        buildConfiguration: Release
-    - run: docker-compose run package
-      env:
-        buildConfiguration: Release
+    - name: Build Docker image
+      run: |
+        docker build \
+          --build-arg DOTNETSDK_VERSION=${dotnetCoreSdk5Version} \
+          --tag dd-trace-dotnet/${baseImage}-builder \
+          --target builder \
+          --file "./tracer/build/_build/docker/${baseImage}.dockerfile" \
+          "./tracer/build/_build"
+    - name: Run 'Clean BuildTracerHome ZipTracerHome' in Docker
+      run: |
+        docker run --rm \
+          --mount type=bind,source="${GITHUB_WORKSPACE}",target=/project \
+          --env NugetPackageDirectory=/project/packages \
+          --env tracerHome=/project/tracer/bin/tracer-home \
+          --env artifacts=/project/tracer/src/bin/artifacts \
+          --env OTEL_CLR_ENABLE_NGEN=${OTEL_CLR_ENABLE_NGEN} \
+          dd-trace-dotnet/${baseImage}-builder \
+          dotnet /build/bin/Debug/_build.dll Clean BuildTracerHome ZipTracerHome
     - uses: actions/upload-artifact@v2
       with:
         name: artifacts
-        path: deploy/linux
+        path: ./tracer/src/bin/artifacts/linux-x64
 
   windows_build:
     name: Windows Build
@@ -58,34 +54,19 @@ jobs:
         shell: cmd
       - run: choco install wixtoolset
         shell: cmd
-      - run: .\build\build.cmd
-        env:
-          buildConfiguration: Release
+      - run: tracer\build.cmd BuildTracerHome
+        shell: cmd
+      - run: tracer\build.cmd PackageTracerHome
         shell: cmd
       - uses: actions/upload-artifact@v2
         with:
           name: artifacts
-          path: src/WindowsInstaller/bin/Release/*/en-us
-
-  macos_build:
-    name: MacOS Build
-    runs-on: macos-10.15
-    steps:
-      - uses: actions/checkout@v2
-      - run: brew install make
-      - run: ./build/build_mac.sh
-        env:
-          buildConfiguration: Release
-      - run: tar --create --verbose --file=otel-dotnet-autoinstrumentation-macos.tar deploy/macos
-      - uses: actions/upload-artifact@v2
-        with:
-          name: artifacts
-          path: otel-dotnet-autoinstrumentation-macos.tar
+          path: tracer/bin/artifacts/*/en-us
 
   create_release:
     runs-on: ubuntu-20.04
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') # only trigger if the current event is for a tag push
-    needs: [alpine_build, linux_build, windows_build, macos_build]
+    needs: [linux_build, windows_build]
     permissions:
       contents: write
     steps:

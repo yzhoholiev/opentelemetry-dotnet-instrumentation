@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework Condition="'$(OS)' == 'Windows_NT'">net461</TargetFramework>
+    <TargetFramework Condition="'$(OS)' != 'Windows_NT'">netcoreapp3.1</TargetFramework>
+    <LoadManagedProfilerFromProfilerDirectory>true</LoadManagedProfilerFromProfilerDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Datadog.Trace\Datadog.Trace.csproj" />
+  </ItemGroup>
+
+</Project>

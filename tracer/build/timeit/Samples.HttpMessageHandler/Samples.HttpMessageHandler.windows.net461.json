@@ -1,0 +1,49 @@
+{
+  "enableDatadog": true,
+  "warmUpCount": 5,
+  "count": 25,
+  "scenarios": [
+    {
+      "name": "Baseline",
+      "environmentVariables": {
+        "CORECLR_ENABLE_PROFILING": "0",
+        "COR_ENABLE_PROFILING": "0"
+      }
+    },
+    {
+      "name": "CallTarget\u002BInlining",
+      "environmentVariables": {
+        "OTEL_CLR_ENABLE_INLINING": "true",
+        "OTEL_CLR_ENABLE_NGEN": "false"
+      }
+    },
+    {
+      "name": "CallTarget\u002BInlining\u002BNGEN",
+      "environmentVariables": {
+        "OTEL_CLR_ENABLE_INLINING": "true",
+        "OTEL_CLR_ENABLE_NGEN": "true"
+      }
+    }
+  ],
+  "processName": ".\\Samples.HttpMessageHandler.exe",
+  "processTimeout": 15,
+  "workingDirectory": "$(CWD)\\..\\..\\..\\test\\test-applications\\integrations\\Samples.HttpMessageHandler\\bin\\Release\\net461",
+  "environmentVariables": {
+    "OTEL_TRACE_CALLTARGET_ENABLED": "true",
+    "CORECLR_ENABLE_PROFILING": "1",
+    "CORECLR_PROFILER": "{918728DD-259F-4A6A-AC2B-B85E1B658318}",
+    "CORECLR_PROFILER_PATH": "$(CWD)\\..\\..\\..\\bin\\tracer-home\\win-x64\\OpenTelemetry.AutoInstrumentation.ClrProfiler.Native.dll",
+    "OTEL_DOTNET_TRACER_HOME": "$(CWD)\\..\\..\\..\\bin\\tracer-home",
+    "OTEL_INTEGRATIONS": "$(CWD)\\..\\..\\..\\bin\\tracer-home\\integrations.json",
+    "COR_ENABLE_PROFILING": "1",
+    "COR_PROFILER": "{918728DD-259F-4A6A-AC2B-B85E1B658318}",
+    "COR_PROFILER_PATH": "$(CWD)\\..\\..\\..\\bin\\tracer-home\\win-x64\\OpenTelemetry.AutoInstrumentation.ClrProfiler.Native.dll"
+  },
+  "tags": {
+    "runtime.architecture": "x64",
+    "runtime.name": ".NET Framework",
+    "runtime.version": "4.6.1",
+    "benchmark.job.runtime.name": ".NET Framework 4.6.1",
+    "benchmark.job.runtime.moniker": "net461"
+  }
+}
