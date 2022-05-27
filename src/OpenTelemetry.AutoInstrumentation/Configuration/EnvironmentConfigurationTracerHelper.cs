@@ -17,7 +17,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace OpenTelemetry.AutoInstrumentation.Configuration;
@@ -29,7 +28,9 @@ internal static class EnvironmentConfigurationTracerHelper
         [TracerInstrumentation.HttpClient] = builder => builder.AddHttpClientInstrumentation(),
         [TracerInstrumentation.AspNet] = builder => builder.AddSdkAspNetInstrumentation(),
         [TracerInstrumentation.SqlClient] = builder => builder.AddSqlClientInstrumentation(),
-        [TracerInstrumentation.MongoDb] = builder => builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources")
+        [TracerInstrumentation.MongoDb] = builder => builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
+        [TracerInstrumentation.MassTransit] = builder => builder.AddMassTransitInstrumentation(),
+        [TracerInstrumentation.Elasticsearch] = builder => builder.AddElasticsearchClientInstrumentation()
     };
 
     public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings)
