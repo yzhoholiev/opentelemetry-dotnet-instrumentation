@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using OpenTelemetry.AutoInstrumentation.Logging;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -23,21 +24,25 @@ namespace OpenTelemetry.AutoInstrumentation.Configuration;
 
 internal static class PluginsConfigurationHelper
 {
-    public static TracerProviderBuilder InvokePlugins(this TracerProviderBuilder builder, IEnumerable<string> pluginsAssemblyQualifiedNames)
+    public static TracerProviderBuilder InvokePlugins(this TracerProviderBuilder builder, IEnumerable<string> pluginsAssemblyQualifiedNames, ILogger logger = null)
     {
         foreach (var assemblyQualifiedName in pluginsAssemblyQualifiedNames)
         {
             builder = builder.InvokePlugin(assemblyQualifiedName);
+
+            logger?.Information($"Plugin {assemblyQualifiedName} loaded");
         }
 
         return builder;
     }
 
-    public static MeterProviderBuilder InvokePlugins(this MeterProviderBuilder builder, IEnumerable<string> pluginsAssemblyQualifiedNames)
+    public static MeterProviderBuilder InvokePlugins(this MeterProviderBuilder builder, IEnumerable<string> pluginsAssemblyQualifiedNames, ILogger logger = null)
     {
         foreach (var assemblyQualifiedName in pluginsAssemblyQualifiedNames)
         {
             builder = builder.InvokePlugin(assemblyQualifiedName);
+
+            logger?.Information($"Plugin {assemblyQualifiedName} loaded");
         }
 
         return builder;

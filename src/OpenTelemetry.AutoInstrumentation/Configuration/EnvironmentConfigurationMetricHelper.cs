@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenTelemetry.AutoInstrumentation.Logging;
 using OpenTelemetry.Metrics;
 
 namespace OpenTelemetry.AutoInstrumentation.Configuration;
@@ -30,18 +31,24 @@ internal static class EnvironmentConfigurationMetricHelper
         [MeterInstrumentation.NetRuntime] = builder => builder.AddRuntimeMetrics(),
     };
 
-    public static MeterProviderBuilder UseEnvironmentVariables(this MeterProviderBuilder builder, MeterSettings settings)
+    public static MeterProviderBuilder UseEnvironmentVariables(this MeterProviderBuilder builder, MeterSettings settings, ILogger logger = null)
     {
         builder
-            .SetExporter(settings)
+            .SetExporter(settings, logger)
             .AddMeter(settings.Meters.ToArray());
 
-        foreach (var enabledMeter in settings.EnabledInstrumentations)
+        logger?.Information($"Meters [{string.Join(", ", settings.Meters)}] added");
+
+        foreach (var enabledMeter in settings.EnabledInstrumentation)
         {
-            if (AddMeters.TryGetValue(enabledMeter, out var addMeter))
+            if (!AddMeters.TryGetValue(enabledMeter, out var addMeter))
             {
-                addMeter(builder);
+                continue;
             }
+
+            addMeter(builder);
+
+            logger?.Information($"Meter {enabledMeter} added");
         }
 
         return builder;
@@ -61,6 +68,8 @@ internal static class EnvironmentConfigurationMetricHelper
         if (settings.ConsoleExporterEnabled)
         {
             builder.AddConsoleExporter();
+
+            logger?.Information("Console exported added");
         }
 
         switch (settings.MetricExporter)
