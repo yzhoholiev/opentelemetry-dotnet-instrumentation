@@ -17,6 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenTelemetry.AutoInstrumentation.Logging;
 using OpenTelemetry.Trace;
 
 namespace OpenTelemetry.AutoInstrumentation.Configuration;
@@ -33,22 +34,31 @@ internal static class EnvironmentConfigurationTracerHelper
         [TracerInstrumentation.Elasticsearch] = builder => builder.AddElasticsearchClientInstrumentation()
     };
 
-    public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings)
+    public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings, ILogger logger = null)
     {
-        builder.SetExporter(settings);
+        builder.SetExporter(settings, logger);
 
         foreach (var enabledInstrumentation in settings.EnabledInstrumentations)
         {
-            if (AddInstrumentation.TryGetValue(enabledInstrumentation, out var addInstrumentation))
+            if (!AddInstrumentation.TryGetValue(enabledInstrumentation, out var addInstrumentation))
             {
-                addInstrumentation(builder);
+                continue;
             }
+
+            addInstrumentation(builder);
+
+            logger?.Information($"Instrumentation {enabledInstrumentation} added");
         }
 
         builder.AddSource(settings.ActivitySources.ToArray());
+
+        logger?.Information($"Sources [{string.Join(", ", settings.ActivitySources)}] added");
+
         foreach (var legacySource in settings.LegacySources)
         {
             builder.AddLegacySource(legacySource);
+
+            logger?.Information($"Legacy source {legacySource} added");
         }
 
         return builder;
@@ -63,20 +73,26 @@ internal static class EnvironmentConfigurationTracerHelper
 #endif
     }
 
-    private static TracerProviderBuilder SetExporter(this TracerProviderBuilder builder, TracerSettings settings)
+    private static TracerProviderBuilder SetExporter(this TracerProviderBuilder builder, TracerSettings settings, ILogger logger = null)
     {
         if (settings.ConsoleExporterEnabled)
         {
             builder.AddConsoleExporter();
+
+            logger?.Information("Console exporter added");
         }
 
         switch (settings.TracesExporter)
         {
             case TracesExporter.Zipkin:
                 builder.AddZipkinExporter();
+
+                logger?.Information("Zipkin exporter added");
                 break;
             case TracesExporter.Jaeger:
                 builder.AddJaegerExporter();
+
+                logger?.Information("Jaeger exporter added");
                 break;
             case TracesExporter.Otlp:
 #if NETCOREAPP3_1
@@ -95,6 +111,8 @@ internal static class EnvironmentConfigurationTracerHelper
                         options.Protocol = settings.OtlpExportProtocol.Value;
                     }
                 });
+
+                logger?.Information("OTLP exporter added");
                 break;
             case TracesExporter.None:
                 break;

@@ -103,9 +103,9 @@ public static class Instrumentation
                 var builder = Sdk
                     .CreateTracerProviderBuilder()
                     .SetResourceBuilder(_resourceBuilder)
-                    .UseEnvironmentVariables(TracerSettings)
+                    .UseEnvironmentVariables(TracerSettings, Logger)
                     .SetSampler(new AlwaysOnSampler())
-                    .InvokePlugins(TracerSettings.TracerPlugins);
+                    .InvokePlugins(TracerSettings.TracerPlugins, Logger);
 
                 _tracerProvider = builder.Build();
                 Logger.Information("OpenTelemetry tracer initialized.");
@@ -116,8 +116,8 @@ public static class Instrumentation
                 var builder = Sdk
                     .CreateMeterProviderBuilder()
                     .SetResourceBuilder(_resourceBuilder)
-                    .UseEnvironmentVariables(MeterSettings)
-                    .InvokePlugins(MeterSettings.MetricPlugins);
+                    .UseEnvironmentVariables(MeterSettings, Logger)
+                    .InvokePlugins(MeterSettings.MetricPlugins, Logger);
 
                 _meterProvider = builder.Build();
                 Logger.Information("OpenTelemetry meter initialized.");
