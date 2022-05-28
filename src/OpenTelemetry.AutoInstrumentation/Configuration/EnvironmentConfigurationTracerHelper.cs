@@ -24,79 +24,106 @@ namespace OpenTelemetry.AutoInstrumentation.Configuration;
 
 internal static class EnvironmentConfigurationTracerHelper
 {
-    private static readonly Dictionary<TracerInstrumentation, Action<TracerProviderBuilder>> AddInstrumentation = new()
+    private static readonly Dictionary<TracerInstrumentation, Action<TraceProviderBuildingContext>> AddInstrumentation = new()
     {
-        [TracerInstrumentation.HttpClient] = builder => builder.AddHttpClientInstrumentation(),
-        [TracerInstrumentation.AspNet] = builder => builder.AddSdkAspNetInstrumentation(),
-        [TracerInstrumentation.SqlClient] = builder => builder.AddSqlClientInstrumentation(),
-        [TracerInstrumentation.MongoDb] = builder => builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
-        [TracerInstrumentation.MassTransit] = builder => builder.AddMassTransitInstrumentation(),
-        [TracerInstrumentation.Elasticsearch] = builder => builder.AddElasticsearchClientInstrumentation()
+        [TracerInstrumentation.HttpClient] = context => context.Builder.AddHttpClientInstrumentation(),
+        [TracerInstrumentation.AspNet] = context => context.AddSdkAspNetInstrumentation(),
+        [TracerInstrumentation.SqlClient] = context => context.Builder.AddSqlClientInstrumentation(),
+        [TracerInstrumentation.MongoDb] = context => context.Builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
+        [TracerInstrumentation.MassTransit] = context => context.Builder.AddMassTransitInstrumentation(),
+        [TracerInstrumentation.Elasticsearch] = context => context.Builder.AddElasticsearchClientInstrumentation()
     };
 
     public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings, ILogger logger = null)
     {
-        builder.SetExporter(settings, logger);
+        return new TraceProviderBuildingContext(builder, settings, logger)
+            .SetExporter()
+            .EnableInstrumentations()
+            .AddActivitySources()
+            .AddLegacySources()
+            .Builder;
+    }
 
-        foreach (var enabledInstrumentation in settings.EnabledInstrumentations)
+    private static TraceProviderBuildingContext AddLegacySources(this TraceProviderBuildingContext context)
+    {
+        foreach (var legacySource in context.Settings.LegacySources)
+        {
+            context.Builder.AddLegacySource(legacySource);
+
+            context.Logger?.Information($"Legacy source {legacySource} added");
+        }
+
+        return context;
+    }
+
+    private static TraceProviderBuildingContext AddActivitySources(this TraceProviderBuildingContext context)
+    {
+        context.Builder.AddSource(context.Settings.ActivitySources.ToArray());
+
+        context.Logger?.Information($"Sources [{string.Join(", ", context.Settings.ActivitySources)}] added");
+
+        return context;
+    }
+
+    private static TraceProviderBuildingContext EnableInstrumentations(this TraceProviderBuildingContext context)
+    {
+        foreach (var enabledInstrumentation in context.Settings.EnabledInstrumentations)
         {
             if (!AddInstrumentation.TryGetValue(enabledInstrumentation, out var addInstrumentation))
             {
                 continue;
             }
 
-            addInstrumentation(builder);
+            addInstrumentation(context);
 
-            logger?.Information($"Instrumentation {enabledInstrumentation} added");
+            context.Logger?.Information($"Instrumentation {enabledInstrumentation} processed");
         }
 
-        builder.AddSource(settings.ActivitySources.ToArray());
-
-        logger?.Information($"Sources [{string.Join(", ", settings.ActivitySources)}] added");
-
-        foreach (var legacySource in settings.LegacySources)
-        {
-            builder.AddLegacySource(legacySource);
-
-            logger?.Information($"Legacy source {legacySource} added");
-        }
-
-        return builder;
+        return context;
     }
 
-    public static TracerProviderBuilder AddSdkAspNetInstrumentation(this TracerProviderBuilder builder)
+    private static void AddSdkAspNetInstrumentation(this TraceProviderBuildingContext context)
     {
 #if NET462
-        return builder.AddAspNetInstrumentation();
+        context.Builder.AddAspNetInstrumentation();
 #elif NETCOREAPP3_1_OR_GREATER
-        return builder.AddAspNetCoreInstrumentation();
+        try
+        {
+            _ = System.Runtime.Loader.AssemblyLoadContext.Default.LoadFromAssemblyName(new System.Reflection.AssemblyName("Microsoft.AspNetCore.Http.Abstractions"));
+
+            context.Builder.AddAspNetCoreInstrumentation();
+        }
+        catch
+        {
+            context.Logger?.Warning("AspNetCore instrumentation not available");
+        }
 #endif
     }
 
-    private static TracerProviderBuilder SetExporter(this TracerProviderBuilder builder, TracerSettings settings, ILogger logger = null)
+    private static TraceProviderBuildingContext SetExporter(this TraceProviderBuildingContext context)
     {
-        if (settings.ConsoleExporterEnabled)
+        if (context.Settings.ConsoleExporterEnabled)
         {
-            builder.AddConsoleExporter();
+            context.Builder.AddConsoleExporter();
 
-            logger?.Information("Console exporter added");
+            context.Logger?.Information("Console exporter added");
         }
 
-        switch (settings.TracesExporter)
+        switch (context.Settings.TracesExporter)
         {
             case TracesExporter.Zipkin:
-                builder.AddZipkinExporter();
+                context.Builder.AddZipkinExporter();
 
-                logger?.Information("Zipkin exporter added");
+                context.Logger?.Information("Zipkin exporter added");
                 break;
             case TracesExporter.Jaeger:
-                builder.AddJaegerExporter();
+                context.Builder.AddJaegerExporter();
 
-                logger?.Information("Jaeger exporter added");
+                context.Logger?.Information("Jaeger exporter added");
                 break;
             case TracesExporter.Otlp:
 #if NETCOREAPP3_1
-                if (settings.Http2UnencryptedSupportEnabled)
+                if (context.Settings.Http2UnencryptedSupportEnabled)
                 {
                     // Adding the OtlpExporter creates a GrpcChannel.
                     // This switch must be set before creating a GrpcChannel/HttpClient when calling an insecure gRPC service.
@@ -104,22 +131,38 @@ internal static class EnvironmentConfigurationTracerHelper
                     AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
                 }
 #endif
-                builder.AddOtlpExporter(options =>
+                context.Builder.AddOtlpExporter(options =>
                 {
-                    if (settings.OtlpExportProtocol.HasValue)
+                    if (context.Settings.OtlpExportProtocol.HasValue)
                     {
-                        options.Protocol = settings.OtlpExportProtocol.Value;
+                        options.Protocol = context.Settings.OtlpExportProtocol.Value;
                     }
                 });
 
-                logger?.Information("OTLP exporter added");
+                context.Logger?.Information("OTLP exporter added");
                 break;
             case TracesExporter.None:
                 break;
             default:
-                throw new ArgumentOutOfRangeException($"Traces exporter '{settings.TracesExporter}' is incorrect");
+                throw new ArgumentOutOfRangeException($"Traces exporter '{context.Settings.TracesExporter}' is incorrect");
         }
 
-        return builder;
+        return context;
+    }
+
+    private sealed class TraceProviderBuildingContext
+    {
+        public TraceProviderBuildingContext(TracerProviderBuilder builder, TracerSettings settings, ILogger logger)
+        {
+            Builder = builder ?? throw new ArgumentNullException(nameof(builder));
+            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            Logger = logger;
+        }
+
+        public TracerProviderBuilder Builder { get; }
+
+        public TracerSettings Settings { get; }
+
+        public ILogger Logger { get; }
     }
 }
