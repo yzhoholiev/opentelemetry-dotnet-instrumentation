@@ -44,5 +44,15 @@ public enum TracerInstrumentation
     /// <summary>
     /// MongoDb instrumentation.
     /// </summary>
-    MongoDb
+    MongoDb,
+
+    /// <summary>
+    /// The MassTransit instrumentation.
+    /// </summary>
+    MassTransit,
+
+    /// <summary>
+    /// The Elasticsearch instrumentation.
+    /// </summary>
+    Elasticsearch
 }
