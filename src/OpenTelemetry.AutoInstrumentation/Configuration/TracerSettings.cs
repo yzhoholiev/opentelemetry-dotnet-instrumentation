@@ -37,7 +37,7 @@ public class TracerSettings : Settings
         TracesExporter = ParseTracesExporter(source);
         ConsoleExporterEnabled = source.GetBool(ConfigurationKeys.Traces.ConsoleExporterEnabled) ?? false;
 
-        var instrumentations = new Dictionary<string, TracerInstrumentation>();
+        var instrumentations = new Dictionary<string, TracerInstrumentation>(StringComparer.OrdinalIgnoreCase);
         var enabledInstrumentations = source.GetString(ConfigurationKeys.Traces.Instrumentations);
         if (enabledInstrumentations != null)
         {
