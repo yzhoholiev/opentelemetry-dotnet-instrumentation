@@ -26,15 +26,15 @@ internal static class EnvironmentConfigurationTracerHelper
 {
     private static readonly Dictionary<TracerInstrumentation, Action<TraceProviderBuildingContext>> AddInstrumentation = new()
     {
-        [TracerInstrumentation.HttpClient] = context => context.Builder.AddHttpClientInstrumentation(),
-        [TracerInstrumentation.AspNet] = context => context.AddSdkAspNetInstrumentation(),
-        [TracerInstrumentation.SqlClient] = context => context.Builder.AddSqlClientInstrumentation(),
-        [TracerInstrumentation.MongoDB] = context => context.Builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
-        [TracerInstrumentation.MassTransit] = context => context.Builder.AddMassTransitInstrumentation(),
-        [TracerInstrumentation.Elasticsearch] = context => context.Builder.AddElasticsearchClientInstrumentation()
+        [TracerInstrumentation.HttpClient] = static context => context.Builder.AddHttpClientInstrumentation(),
+        [TracerInstrumentation.AspNet] = static context => context.AddSdkAspNetInstrumentation(),
+        [TracerInstrumentation.SqlClient] = static context => context.Builder.AddSqlClientInstrumentation(),
+        [TracerInstrumentation.MongoDB] = static context => context.Builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
+        [TracerInstrumentation.MassTransit] = static context => context.Builder.AddMassTransitInstrumentation(),
+        [TracerInstrumentation.Elasticsearch] = static context => context.Builder.AddElasticsearchClientInstrumentation()
     };
 
-    public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings, ILogger logger = null)
+    public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings, ILogger logger)
     {
         return new TraceProviderBuildingContext(builder, settings, logger)
             .SetExporter()
@@ -50,7 +50,7 @@ internal static class EnvironmentConfigurationTracerHelper
         {
             context.Builder.AddLegacySource(legacySource);
 
-            context.Logger?.Information($"Legacy source {legacySource} added");
+            context.Logger.Information($"Legacy source {legacySource} added");
         }
 
         return context;
@@ -60,7 +60,7 @@ internal static class EnvironmentConfigurationTracerHelper
     {
         context.Builder.AddSource(context.Settings.ActivitySources.ToArray());
 
-        context.Logger?.Information($"Sources [{string.Join(", ", context.Settings.ActivitySources)}] added");
+        context.Logger.Information($"Sources [{string.Join(", ", context.Settings.ActivitySources)}] added");
 
         return context;
     }
@@ -76,7 +76,7 @@ internal static class EnvironmentConfigurationTracerHelper
 
             addInstrumentation(context);
 
-            context.Logger?.Information($"Instrumentation {enabledInstrumentation} processed");
+            context.Logger.Information($"Instrumentation {enabledInstrumentation} processed");
         }
 
         return context;
@@ -95,7 +95,7 @@ internal static class EnvironmentConfigurationTracerHelper
         }
         catch
         {
-            context.Logger?.Warning("AspNetCore instrumentation not available");
+            context.Logger.Warning("AspNetCore instrumentation not available");
         }
 #endif
     }
@@ -106,7 +106,7 @@ internal static class EnvironmentConfigurationTracerHelper
         {
             context.Builder.AddConsoleExporter();
 
-            context.Logger?.Information("Console exporter added");
+            context.Logger.Information("Console exporter added");
         }
 
         switch (context.Settings.TracesExporter)
@@ -114,12 +114,12 @@ internal static class EnvironmentConfigurationTracerHelper
             case TracesExporter.Zipkin:
                 context.Builder.AddZipkinExporter();
 
-                context.Logger?.Information("Zipkin exporter added");
+                context.Logger.Information("Zipkin exporter added");
                 break;
             case TracesExporter.Jaeger:
                 context.Builder.AddJaegerExporter();
 
-                context.Logger?.Information("Jaeger exporter added");
+                context.Logger.Information("Jaeger exporter added");
                 break;
             case TracesExporter.Otlp:
 #if NETCOREAPP3_1
@@ -139,7 +139,7 @@ internal static class EnvironmentConfigurationTracerHelper
                     }
                 });
 
-                context.Logger?.Information("OTLP exporter added");
+                context.Logger.Information("OTLP exporter added");
                 break;
             case TracesExporter.None:
                 break;
@@ -150,19 +150,11 @@ internal static class EnvironmentConfigurationTracerHelper
         return context;
     }
 
-    private sealed class TraceProviderBuildingContext
+    private sealed class TraceProviderBuildingContext : ProviderBuildingContext<TracerProviderBuilder, TracerSettings>
     {
         public TraceProviderBuildingContext(TracerProviderBuilder builder, TracerSettings settings, ILogger logger)
+            : base(builder, settings, logger)
         {
-            Builder = builder ?? throw new ArgumentNullException(nameof(builder));
-            Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            Logger = logger;
         }
-
-        public TracerProviderBuilder Builder { get; }
-
-        public TracerSettings Settings { get; }
-
-        public ILogger Logger { get; }
     }
 }

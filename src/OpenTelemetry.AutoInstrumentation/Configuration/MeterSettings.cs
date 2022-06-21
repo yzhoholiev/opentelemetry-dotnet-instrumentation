@@ -36,7 +36,7 @@ namespace OpenTelemetry.AutoInstrumentation.Configuration
             MetricExporter = ParseMetricExporter(source);
             ConsoleExporterEnabled = source.GetBool(ConfigurationKeys.Metrics.ConsoleExporterEnabled) ?? false;
 
-            var instrumentations = new Dictionary<string, MeterInstrumentation>();
+            var instrumentations = new Dictionary<string, MeterInstrumentation>(StringComparer.OrdinalIgnoreCase);
             var enabledInstrumentations = source.GetString(ConfigurationKeys.Metrics.Instrumentations);
             if (enabledInstrumentations != null)
             {
