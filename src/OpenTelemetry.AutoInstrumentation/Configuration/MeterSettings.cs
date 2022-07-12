@@ -42,7 +42,7 @@ namespace OpenTelemetry.AutoInstrumentation.Configuration
             {
                 foreach (var instrumentation in enabledInstrumentations.Split(Separator))
                 {
-                    if (Enum.TryParse(instrumentation, out MeterInstrumentation parsedType))
+                    if (Enum.TryParse(instrumentation, true, out MeterInstrumentation parsedType))
                     {
                         instrumentations[instrumentation] = parsedType;
                     }

@@ -43,7 +43,7 @@ public class TracerSettings : Settings
         {
             foreach (var instrumentation in enabledInstrumentations.Split(Separator))
             {
-                if (Enum.TryParse(instrumentation, out TracerInstrumentation parsedType))
+                if (Enum.TryParse(instrumentation, true, out TracerInstrumentation parsedType))
                 {
                     instrumentations[instrumentation] = parsedType;
                 }
