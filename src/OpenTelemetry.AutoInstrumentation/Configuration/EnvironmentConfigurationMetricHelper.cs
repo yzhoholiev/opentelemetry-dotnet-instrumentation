@@ -17,68 +17,82 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using OpenTelemetry.AutoInstrumentation.Logging;
 using OpenTelemetry.Metrics;
 
 namespace OpenTelemetry.AutoInstrumentation.Configuration;
 
 internal static class EnvironmentConfigurationMetricHelper
 {
-    private static readonly Dictionary<MetricInstrumentation, Action<MeterProviderBuilder>> AddMeters = new()
+    private static readonly Dictionary<MetricInstrumentation, Action<MeterProviderBuildingContext>> AddMeters = new()
     {
-        [MetricInstrumentation.AspNet] = builder => builder.AddSdkAspNetInstrumentation(),
-        [MetricInstrumentation.HttpClient] = builder => builder.AddHttpClientInstrumentation(),
-        [MetricInstrumentation.NetRuntime] = builder => builder.AddRuntimeInstrumentation(),
+        [MetricInstrumentation.AspNet] = static context => context.AddSdkAspNetInstrumentation(),
+        [MetricInstrumentation.HttpClient] = static context => context.Builder.AddHttpClientInstrumentation(),
+        [MetricInstrumentation.NetRuntime] = static context => context.Builder.AddRuntimeInstrumentation(),
     };
 
-    public static MeterProviderBuilder UseEnvironmentVariables(this MeterProviderBuilder builder, MetricSettings settings)
+    public static MeterProviderBuilder UseEnvironmentVariables(this MeterProviderBuilder builder, MetricSettings settings, ILogger logger = null)
     {
-        builder
-            .SetExporter(settings)
-            .AddMeter(settings.Meters.ToArray());
-
-        foreach (var enabledMeter in settings.EnabledInstrumentations)
-        {
-            if (AddMeters.TryGetValue(enabledMeter, out var addMeter))
-            {
-                addMeter(builder);
-            }
-        }
-
-        return builder;
+        return new MeterProviderBuildingContext(builder, settings, logger)
+            .SetExporter()
+            .EnableInstrumentations()
+            .AddMeter()
+            .Builder;
     }
 
-    public static MeterProviderBuilder AddSdkAspNetInstrumentation(this MeterProviderBuilder builder)
+    private static MeterProviderBuildingContext EnableInstrumentations(this MeterProviderBuildingContext context)
+    {
+        context.Logger.Information($"Meters [{string.Join(", ", context.Settings.Meters)}] added");
+
+        foreach (var enabledMeter in context.Settings.EnabledInstrumentations)
+        {
+            if (!AddMeters.TryGetValue(enabledMeter, out var addMeter))
+            {
+                continue;
+            }
+
+            addMeter(context);
+
+            context.Logger.Information($"Meter {enabledMeter} processed");
+        }
+
+        return context;
+    }
+
+    private static void AddSdkAspNetInstrumentation(this MeterProviderBuildingContext context)
     {
 #if NET462
-        builder.AddAspNetInstrumentation();
+        context.Builder.AddAspNetInstrumentation();
 #elif NETCOREAPP3_1_OR_GREATER
-        builder.AddMeter("OpenTelemetry.Instrumentation.AspNetCore");
+        context.Builder.AddMeter("OpenTelemetry.Instrumentation.AspNetCore");
 #endif
-
-        return builder;
     }
 
-    private static MeterProviderBuilder SetExporter(this MeterProviderBuilder builder, MetricSettings settings)
+    private static MeterProviderBuildingContext SetExporter(this MeterProviderBuildingContext context)
     {
-        if (settings.ConsoleExporterEnabled)
+        if (context.Settings.ConsoleExporterEnabled)
         {
-            builder.AddConsoleExporter((_, metricReaderOptions) =>
+            context.Builder.AddConsoleExporter((_, metricReaderOptions) =>
             {
-                if (settings.MetricExportInterval != null)
+                if (context.Settings.MetricExportInterval != null)
                 {
-                    metricReaderOptions.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = settings.MetricExportInterval;
+                    metricReaderOptions.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = context.Settings.MetricExportInterval;
                 }
             });
+
+            context.Logger.Information("Console exported added");
         }
 
-        switch (settings.MetricExporter)
+        switch (context.Settings.MetricExporter)
         {
             case MetricsExporter.Prometheus:
-                builder.AddPrometheusExporter(options => { options.StartHttpListener = true; });
+                context.Builder.AddPrometheusExporter(options => { options.StartHttpListener = true; });
+
+                context.Logger.Information("Prometheus exporter added");
                 break;
             case MetricsExporter.Otlp:
 #if NETCOREAPP3_1
-                if (settings.Http2UnencryptedSupportEnabled)
+                if (context.Settings.Http2UnencryptedSupportEnabled)
                 {
                     // Adding the OtlpExporter creates a GrpcChannel.
                     // This switch must be set before creating a GrpcChannel/HttpClient when calling an insecure gRPC service.
@@ -86,25 +100,44 @@ internal static class EnvironmentConfigurationMetricHelper
                     AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
                 }
 #endif
-                builder.AddOtlpExporter((options, metricReaderOptions) =>
+                context.Builder.AddOtlpExporter((options, metricReaderOptions) =>
                 {
-                    if (settings.OtlpExportProtocol.HasValue)
+                    if (context.Settings.OtlpExportProtocol.HasValue)
                     {
-                        options.Protocol = settings.OtlpExportProtocol.Value;
+                        options.Protocol = context.Settings.OtlpExportProtocol.Value;
                     }
 
-                    if (settings.MetricExportInterval != null)
+                    if (context.Settings.MetricExportInterval != null)
                     {
-                        metricReaderOptions.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = settings.MetricExportInterval;
+                        metricReaderOptions.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = context.Settings.MetricExportInterval;
                     }
                 });
+
+                context.Logger.Information("OTLP exporter added");
                 break;
             case MetricsExporter.None:
                 break;
             default:
-                throw new ArgumentOutOfRangeException($"Metrics exporter '{settings.MetricExporter}' is incorrect");
+                throw new ArgumentOutOfRangeException($"Metrics exporter '{context.Settings.MetricExporter}' is incorrect");
         }
 
-        return builder;
+        return context;
+    }
+
+    private static MeterProviderBuildingContext AddMeter(this MeterProviderBuildingContext context)
+    {
+        context.Builder.AddMeter(context.Settings.Meters.ToArray());
+
+        context.Logger.Information($"Meters [{string.Join(", ", context.Settings.Meters)}] added");
+
+        return context;
+    }
+
+    private sealed class MeterProviderBuildingContext : ProviderBuildingContext<MeterProviderBuilder, MetricSettings>
+    {
+        public MeterProviderBuildingContext(MeterProviderBuilder builder, MetricSettings settings, ILogger logger)
+            : base(builder, settings, logger)
+        {
+        }
     }
 }
