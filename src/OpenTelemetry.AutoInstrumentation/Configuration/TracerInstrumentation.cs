@@ -68,5 +68,15 @@ public enum TracerInstrumentation
     /// <summary>
     /// GrpcNetClient instrumentation.
     /// </summary>
-    GrpcNetClient = 8
+    GrpcNetClient = 8,
+
+    /// <summary>
+    /// The MassTransit instrumentation.
+    /// </summary>
+    MassTransit = 101,
+
+    /// <summary>
+    /// The Elasticsearch instrumentation.
+    /// </summary>
+    Elasticsearch = 102
 }
