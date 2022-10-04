@@ -26,7 +26,7 @@ internal static class ConfigurationSourceExtensions
     public static IList<TEnum> ParseEnabledEnumList<TEnum>(this IConfigurationSource source, string enabledConfiguration, string disabledConfiguration, string error)
         where TEnum : struct, IConvertible
     {
-        var instrumentations = new Dictionary<string, TEnum>();
+        var instrumentations = new Dictionary<string, TEnum>(StringComparer.OrdinalIgnoreCase);
         var enabledInstrumentations = source.GetString(enabledConfiguration);
         if (enabledInstrumentations != null)
         {
@@ -37,13 +37,9 @@ internal static class ConfigurationSourceExtensions
 
             foreach (var instrumentation in enabledInstrumentations.Split(Constants.ConfigurationValues.Separator))
             {
-                if (Enum.TryParse(instrumentation, out TEnum parsedType))
+                if (Enum.TryParse(instrumentation, true, out TEnum parsedType))
                 {
                     instrumentations[instrumentation] = parsedType;
-                }
-                else
-                {
-                    throw new FormatException(string.Format(error, instrumentation));
                 }
             }
         }
