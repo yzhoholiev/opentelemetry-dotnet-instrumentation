@@ -23,20 +23,27 @@ namespace OpenTelemetry.AutoInstrumentation.Configuration;
 
 internal static class EnvironmentConfigurationTracerHelper
 {
-    private static readonly Dictionary<TracerInstrumentation, Action<TracerProviderBuilder>> AddInstrumentation = new()
+    private static readonly Dictionary<TracerInstrumentation, Action<TracerProviderBuilder, TracerSettings>> AddInstrumentation = new()
     {
-        [TracerInstrumentation.HttpClient] = builder => builder.AddHttpClientInstrumentation(),
-        [TracerInstrumentation.AspNet] = builder => builder.AddSdkAspNetInstrumentation(),
-        [TracerInstrumentation.SqlClient] = builder => builder.AddSqlClientInstrumentation(),
+        [TracerInstrumentation.HttpClient] = (builder, _) => builder.AddHttpClientInstrumentation(),
+        [TracerInstrumentation.AspNet] = (builder, _) => builder.AddSdkAspNetInstrumentation(),
 #if NETCOREAPP3_1_OR_GREATER
-        [TracerInstrumentation.MongoDB] = builder => builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
-        [TracerInstrumentation.MySqlData] = builder => builder.AddSource("OpenTelemetry.Instrumentation.MySqlData"),
-        [TracerInstrumentation.StackExchangeRedis] = builder => builder.AddSource("OpenTelemetry.Instrumentation.StackExchangeRedis"),
+        [TracerInstrumentation.SqlClient] = (builder, settings) => builder.AddSqlClientInstrumentation(o =>
+        {
+            o.SetDbStatementForStoredProcedure = settings.SqlClientAddDbStatement;
+            o.SetDbStatementForText = settings.SqlClientAddDbStatement;
+        }),
+        [TracerInstrumentation.MongoDB] = (builder, _) => builder.AddSource("MongoDB.Driver.Core.Extensions.DiagnosticSources"),
+        [TracerInstrumentation.MySqlData] = (builder, _) => builder.AddSource("OpenTelemetry.Instrumentation.MySqlData"),
+        [TracerInstrumentation.StackExchangeRedis] = (builder, _) => builder.AddSource("OpenTelemetry.Instrumentation.StackExchangeRedis"),
 #endif
-        [TracerInstrumentation.Npgsql] = builder => builder.AddSource("Npgsql"),
-        [TracerInstrumentation.GrpcNetClient] = builder => builder.AddGrpcClientInstrumentation(options => options.SuppressDownstreamInstrumentation = !Instrumentation.TracerSettings.EnabledInstrumentations.Contains(TracerInstrumentation.HttpClient)),
-        [TracerInstrumentation.MassTransit] = builder => builder.AddMassTransitInstrumentation(),
-        [TracerInstrumentation.Elasticsearch] = builder => builder.AddElasticsearchClientInstrumentation()
+#if NETFRAMEWORK
+        [TracerInstrumentation.SqlClient] = (builder, settings) => builder.AddSqlClientInstrumentation(o => o.SetDbStatement = settings.SqlClientAddDbStatement),
+#endif
+        [TracerInstrumentation.Npgsql] = (builder, _) => builder.AddSource("Npgsql"),
+        [TracerInstrumentation.GrpcNetClient] = (builder, _) => builder.AddGrpcClientInstrumentation(options => options.SuppressDownstreamInstrumentation = !Instrumentation.TracerSettings.EnabledInstrumentations.Contains(TracerInstrumentation.HttpClient)),
+        [TracerInstrumentation.MassTransit] = (builder, _) => builder.AddMassTransitInstrumentation(),
+        [TracerInstrumentation.Elasticsearch] = (builder, _) => builder.AddElasticsearchClientInstrumentation()
     };
 
     public static TracerProviderBuilder UseEnvironmentVariables(this TracerProviderBuilder builder, TracerSettings settings)
@@ -47,7 +54,7 @@ internal static class EnvironmentConfigurationTracerHelper
         {
             if (AddInstrumentation.TryGetValue(enabledInstrumentation, out var addInstrumentation))
             {
-                addInstrumentation(builder);
+                addInstrumentation(builder, settings);
             }
         }
 

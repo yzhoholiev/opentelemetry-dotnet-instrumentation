@@ -70,6 +70,7 @@ public class TracerSettings : Settings
         }
 
         LoadTracerAtStartup = source.GetBool(ConfigurationKeys.Traces.LoadTracerAtStartup) ?? true;
+        SqlClientAddDbStatement = source.GetBool(ConfigurationKeys.Traces.SqlClientAddDbStatement) ?? false;
     }
 
     /// <summary>
@@ -106,6 +107,11 @@ public class TracerSettings : Settings
     /// Gets the list of legacy sources to be added to the tracer at the startup.
     /// </summary>
     public IList<string> LegacySources { get; } = new List<string>();
+
+    /// <summary>
+    /// Gets a value indicating whether SQL Client instrumentation adds DB statement as a tag. For .NET Framework works properly only with <c>Microsoft.Data.SqlClient</c>. Default is false.
+    /// </summary>
+    public bool SqlClientAddDbStatement { get; }
 
     internal static TracerSettings FromDefaultSources()
     {

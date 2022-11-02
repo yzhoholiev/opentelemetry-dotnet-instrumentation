@@ -96,6 +96,11 @@ public class ConfigurationKeys
         /// Configuration key for legacy source names to be added to the tracer at the startup.
         /// </summary>
         public const string LegacySources = "OTEL_DOTNET_AUTO_LEGACY_SOURCES";
+
+        /// <summary>
+        /// Configuration key for whether SQL Client instrumentation adds DB statement as a tag.
+        /// </summary>
+        public const string SqlClientAddDbStatement = "OTEL_DOTNET_AUTO_SQLCLIENT_ADD_DB_STATEMENT";
     }
 
     /// <summary>
